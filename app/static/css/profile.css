@@ -1,0 +1,33 @@
+/* Estilo para las columnas de la tabla */
+.col-conferencia {
+    width: 70%; /* La columna de la conferencia ocupa más espacio */
+}
+
+.col-acciones {
+    width: 30%; /* La columna de acciones ocupa menos espacio */
+}
+
+.btn-tick {
+    width: 100%; /* Botón ocupa todo el ancho de la columna */
+}
+
+/* Colores alternos para las filas de la tabla */
+table tbody tr:nth-child(odd) {
+    background-color: #f8f9fa; /* Gris claro para filas impares */
+}
+
+table tbody tr:nth-child(even) {
+    background-color: #ffffff; /* Blanco para filas pares */
+}
+
+/* Estilo para el bloque central de 10 columnas */
+.bloqueTabla {
+    border: 2px solid black; /* Borde negro */
+    padding: 20px; /* Espacio alrededor de la tabla */
+    border-radius: 8px; /* Bordes redondeados para el bloque */
+}
+
+/* Estilo para la tabla para que ocupe casi todo el bloque */
+table {
+    width: 100%; /* Tabla ocupa todo el ancho disponible */
+}
