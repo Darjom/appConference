@@ -1,53 +1,162 @@
+import pandas as pd
+import qrcode
+import smtplib
+import os
+from dotenv import load_dotenv
 from firebase_config import db
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 
-# Paso 1: Obtener el ID del usuario
-# Consulta el ID del usuario con el email "danijorequem@gmail.com"
-usuarios = db.child("usuarios").order_by_child("email").equal_to("danijorequem@gmail.com").get()
-usuario_id = None
+# Obtener la ruta absoluta al directorio actual del script
+current_dir = os.path.dirname(os.path.abspath(__file__))
 
-for usuario in usuarios.each():
-    usuario_id = usuario.key()  # Obtener el ID del usuario
-    break
+# Construir la ruta al archivo .env en la raíz del proyecto
+dotenv_path = os.path.join(current_dir, '..', '.env')
 
-# Comprobar si el usuario existe
-if usuario_id is None:
-    print("No se encontró el usuario con el correo especificado.")
-else:
-    # Paso 2: Obtener los IDs de las conferencias deseadas
-    temas_deseados = [
-        "Más que Trabajo: Creando Experiencias Memorables para el Equipo",
-        "Mi aventura en la ruta del emprendimiento",
-        "Triple impacto en Bolivia. Caso Mamut"
-    ]
-    
-    conferencias = db.child("conferencias").get()
-    conferencia_ids = []
+# Cargar las variables de entorno desde .env
+load_dotenv()
 
-    # Agregamos prints para depuración
-    print("Temas deseados:", temas_deseados)
-    print("Conferencias encontradas en Firebase:")
 
-    for conferencia in conferencias.each():
-        tema_conferencia = conferencia.val().get("Tema")
-        print(f"Revisando tema de conferencia: {tema_conferencia}")
-        
-        # Verificar si el tema de la conferencia está en temas_deseados
-        if tema_conferencia in temas_deseados:
-            conferencia_ids.append(conferencia.key())
-            print(f"Conferencia encontrada: {tema_conferencia} con ID: {conferencia.key()}")
 
-    # Verificar los IDs de conferencia obtenidos
-    print("Conferencia IDs encontrados:", conferencia_ids)
+# Ruta para almacenar los QR generados
+QR_DIR = "qrs/"
+os.makedirs(QR_DIR, exist_ok=True)
 
-    # Paso 3: Crear la tabla intermedia y hacer push de cada registro
-    for conferencia_id in conferencia_ids:
-        registro = {
-            "usuario_id": usuario_id,
-            "conferencia_id": conferencia_id,
-            "asistio": False
-        }
-        # Hacer push de cada registro para asegurarse de que se crea una entrada única
-        result = db.child("usuario_conferencia").push(registro)
-        print("Registro añadido con ID:", result['name'])
+# Configuración del servidor SMTP desde variables de entorno
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = int(os.getenv("SMTP_PORT"))
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 
-    print("Tabla intermedia creada y datos insertados exitosamente.")
+print(f"SMTP_SERVER: {SMTP_SERVER}")
+print(f"SMTP_PORT: {SMTP_PORT}")
+print(f"SMTP_USER: {SMTP_USER}")
+print(f"SMTP_PASSWORD: {SMTP_PASSWORD}")
+
+
+# Leer el archivo Excel
+def obtener_datos_inscripcion(ruta_excel):
+    return pd.read_excel(ruta_excel)
+
+# Función para verificar si existe la conexión en la tabla intermedia
+def existe_conexion(usuario_id, conferencia_id):
+    registros = db.child("usuario_conferencia").order_by_child("usuario_id").equal_to(usuario_id).get()
+    for registro in registros.each():
+        if registro.val().get("conferencia_id") == conferencia_id:
+            return True
+    return False
+
+# Función para generar y guardar el código QR
+def generar_qr(email):
+    qr = qrcode.make(email)
+    qr_path = os.path.join(QR_DIR, f"{email}.png")
+    qr.save(qr_path)
+    return qr_path
+
+# Función para enviar el correo con el QR adjunto
+def enviar_correo(correo_destino, qr_path):
+    mensaje = MIMEMultipart()
+    mensaje["From"] = SMTP_USER
+    mensaje["To"] = correo_destino
+    mensaje["Subject"] = "Confirmación de inscripción - Semana Empresarial"
+
+    # Cuerpo del correo
+    cuerpo = """
+    Estimado/a participante,
+
+    Su inscripción para la Semana Empresarial ha sido confirmada exitosamente.
+    Adjunto encontrará un código QR que funcionará como su pase de entrada.
+
+    Por favor, presente este código QR en la entrada del evento para acceder.
+
+    ¡Gracias por ser parte de este evento!
+
+    Saludos cordiales,
+    Centro Estudiantil Kainos
+    """
+    mensaje.attach(MIMEText(cuerpo, "plain"))
+
+    # Adjuntar el QR
+    with open(qr_path, "rb") as qr_file:
+        img = MIMEImage(qr_file.read())
+        img.add_header("Content-Disposition", f"attachment; filename={os.path.basename(qr_path)}")
+        mensaje.attach(img)
+
+    # Enviar el correo
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, correo_destino, mensaje.as_string())
+        print(f"Correo enviado a {correo_destino}")
+    except Exception as e:
+        print(f"Error al enviar correo a {correo_destino}: {e}")
+
+# Función principal para registrar usuarios y conferencias
+def registrar_usuarios_conferencias(ruta_excel):
+    inscripciones = obtener_datos_inscripcion(ruta_excel)
+
+    for _, inscripcion_data in inscripciones.iterrows():
+        email = inscripcion_data["Dirección de correo electrónico"]
+        nombre_completo = inscripcion_data["Nombre Completo"]
+        celular = str(inscripcion_data["Celular"])
+        tipo_inscripcion = inscripcion_data["A cuantas conferencias desea inscribirse?"]
+        dia = inscripcion_data.get("¿Que día de la Semana Empresarial asistiras?", None)
+        conferencia_deseada = inscripcion_data.get("¿Qué conferencia deseas inscribirte?", None)
+
+        # Paso 1: Verificar si el usuario ya existe en Firebase
+        usuarios = db.child("usuarios").order_by_child("email").equal_to(email).get()
+        usuario_id = None
+
+        for usuario in usuarios.each():
+            usuario_id = usuario.key()
+            break
+
+        if usuario_id is None:
+            # Si el usuario no existe, agregarlo a la base de datos
+            nuevo_usuario = {
+                "email": email,
+                "nombre_completo": nombre_completo,
+                "celular": celular
+            }
+            usuario_id = db.child("usuarios").push(nuevo_usuario)["name"]
+            print(f"Nuevo usuario agregado con ID: {usuario_id}")
+
+            # Generar y guardar el QR
+            qr_path = generar_qr(email)
+            print(f"Código QR generado en: {qr_path}")
+
+            # Enviar correo con el QR adjunto
+            enviar_correo(email, qr_path)
+        else:
+            print(f"Usuario ya existe con ID: {usuario_id}")
+
+        # Procesar el tipo de inscripción
+        if tipo_inscripcion == "Una sola conferencia" and conferencia_deseada:
+            expositor_tema = conferencia_deseada.split(":")[0].strip()
+            
+            # Normalizar el nombre del expositor para que coincida con el formato en Firebase
+            expositor_tema = expositor_tema.replace("’", "´")  # Reemplaza ’ con ´
+            print(f"Buscando conferencias para el expositor: {expositor_tema}")
+
+            conferencias = db.child("conferencias").order_by_child("Expositor").equal_to(expositor_tema).get()
+            for conferencia in conferencias.each():
+                conferencia_id = conferencia.key()
+                print(f"Conferencia encontrada - ID: {conferencia_id}, Expositor: {conferencia.val().get('Expositor')}")
+                if not existe_conexion(usuario_id, conferencia_id):
+                    registro = {
+                        "usuario_id": usuario_id,
+                        "conferencia_id": conferencia_id,
+                        "asistio": False
+                    }
+                    result = db.child("usuario_conferencia").push(registro)
+                    print("Registro añadido con ID:", result['name'])
+                else:
+                    print(f"Conexión ya existe para usuario {usuario_id} y conferencia {conferencia_id}")
+        else:
+            print("Tipo de inscripción no reconocido o faltan datos")
+
+# Ejecuta la función principal con la ruta del archivo Excel
+ruta_excel = "app/static/documents/inscripciones.xlsx"
+registrar_usuarios_conferencias(ruta_excel)

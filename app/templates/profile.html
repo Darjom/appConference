@@ -8,42 +8,49 @@
 </head>
 <body>
     <div class="container-fluid min-vh-100 d-flex flex-column justify-content-center align-items-center">
-        <!-- Nombre del usuario centrado y responsive -->
+        <!-- Nombre completo del usuario centrado -->
         <div class="row w-100">
             <div class="col-12 text-center">
-                <h3 class="text-truncate d-inline-block" style="max-width: 90vw;">{{ user_name }}</h3>
+                <h3 class="text-truncate d-inline-block" style="max-width: 90vw;">{{ user_full_name }}</h3>
+                <h5 class="text-truncate d-inline-block" style="max-width: 90vw;">{{ user_name }}</h5>
             </div>
         </div>
 
-        <!-- Tabla de conferencias en un contenedor responsivo -->
+        <!-- Conferencias organizadas por días -->
         <div class="row mt-4 w-100">
             <div class="col-12 col-md-10 offset-md-1">
-                <div class="table-responsive">
-                    <table class="table table-striped table-bordered">
-                        <thead>
-                            <tr>
-                                <th scope="col">Conferencia</th>
-                                <th scope="col">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for conference in conferences %}
-                            <tr>
-                                <td>{{ conference.tema }}</td>
-                                <td>
-                                    {% if not conference.asistio %}
-                                        <button class="btn btn-primary" onclick="markAsAttended('{{ conference.id }}', this)">
-                                            Tickear
-                                        </button>
-                                    {% else %}
-                                        <button class="btn btn-secondary" disabled>Asistió</button>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                {% for day, conferences_by_day in conferences_by_day.items %}
+                    <h3 class="text-center mt-4">{{ day }}</h3>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Conferencia</th>
+                                    <th scope="col">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for conference in conferences_by_day %}
+                                <tr>
+                                    <td>{{ conference.tema }}</td>
+                                    <td>
+                                        {% if not conference.asistio %}
+                                            <button class="btn btn-primary" onclick="markAsAttended('{{ conference.id }}', this)">
+                                                Tickear
+                                            </button>
+                                        {% else %}
+                                            <button class="btn btn-secondary" disabled>Asistió</button>
+                                            <button class="btn btn-danger ms-2" onclick="confirmRevertAttendance('{{ conference.id }}', this)">
+                                                <i class="bi bi-trash"></i> <!-- Icono de basurero -->
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endfor %}
             </div>
         </div>
     </div>
@@ -56,22 +63,58 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ relacion_id: relacionId })
+                body: JSON.stringify({ relacion_id: relacionId, attended: true })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Cambia el botón a gris y deshabilítalo
                     button.classList.remove('btn-primary');
                     button.classList.add('btn-secondary');
                     button.innerText = 'Asistió';
                     button.disabled = true;
+                    // Muestra el botón de revertir
+                    const revertButton = button.nextElementSibling;
+                    if (revertButton) revertButton.style.display = 'inline-block';
                 } else {
                     alert("Hubo un error al actualizar la asistencia.");
                 }
             })
             .catch(error => console.error('Error:', error));
         }
+
+        // Confirmación y reversión de asistencia
+        function confirmRevertAttendance(relacionId, button) {
+            if (confirm("¿Está seguro de que desea revertir la asistencia?")) {
+                revertAttendance(relacionId, button);
+            }
+        }
+
+        // Función para revertir asistencia
+        function revertAttendance(relacionId, button) {
+            fetch('/update_assistance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ relacion_id: relacionId, attended: false })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const tickButton = button.previousElementSibling;
+                    tickButton.classList.remove('btn-secondary');
+                    tickButton.classList.add('btn-primary');
+                    tickButton.innerText = 'Tickear';
+                    tickButton.disabled = false;
+                    button.style.display = 'none';
+                } else {
+                    alert("Hubo un error al revertir la asistencia.");
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
     </script>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 </body>
 </html>
