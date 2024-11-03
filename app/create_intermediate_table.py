@@ -135,9 +135,7 @@ def registrar_usuarios_conferencias(ruta_excel):
         # Procesar el tipo de inscripción
         if tipo_inscripcion == "Una sola conferencia" and conferencia_deseada:
             expositor_tema = conferencia_deseada.split(":")[0].strip()
-            
-            # Normalizar el nombre del expositor para que coincida con el formato en Firebase
-            expositor_tema = expositor_tema.replace("’", "´")  # Reemplaza ’ con ´
+            expositor_tema = expositor_tema.replace("’", "´")  # Normalizar el nombre del expositor
             print(f"Buscando conferencias para el expositor: {expositor_tema}")
 
             conferencias = db.child("conferencias").order_by_child("Expositor").equal_to(expositor_tema).get()
@@ -154,8 +152,50 @@ def registrar_usuarios_conferencias(ruta_excel):
                     print("Registro añadido con ID:", result['name'])
                 else:
                     print(f"Conexión ya existe para usuario {usuario_id} y conferencia {conferencia_id}")
-        else:
-            print("Tipo de inscripción no reconocido o faltan datos")
+
+        elif tipo_inscripcion == "Pase completo por toda la Semana Empresarial":
+            # Obtener todas las conferencias e inscribir al usuario en todas
+            conferencias = db.child("conferencias").get()
+            for conferencia in conferencias.each():
+                conferencia_id = conferencia.key()
+                if not existe_conexion(usuario_id, conferencia_id):
+                    registro = {
+                        "usuario_id": usuario_id,
+                        "conferencia_id": conferencia_id,
+                        "asistio": False
+                    }
+                    result = db.child("usuario_conferencia").push(registro)
+                    print("Registro añadido con ID:", result['name'])
+                else:
+                    print(f"Conexión ya existe para usuario {usuario_id} y conferencia {conferencia_id}")
+
+        elif tipo_inscripcion == "Pase completo por día" and dia:
+            # Convertir el valor del día al formato esperado en Firebase (e.g., "LUNES 4")
+            dia_split = dia.split(" ")
+            dia_formato = f"{dia_split[0].upper()} {dia_split[1]}"
+            print(f"Buscando conferencias para el día: {dia_formato}")
+
+            # Obtener todas las conferencias que coincidan con el día
+            conferencias = db.child("conferencias").order_by_child("Dia").equal_to(dia_formato).get()
+            
+            if conferencias.each() is None:
+                print(f"No se encontraron conferencias para el día: {dia_formato}")
+            else:
+                for conferencia in conferencias.each():
+                    conferencia_id = conferencia.key()
+                    print(f"Conferencia encontrada - ID: {conferencia_id}, Día: {conferencia.val().get('Dia')}")
+                    if not existe_conexion(usuario_id, conferencia_id):
+                        registro = {
+                            "usuario_id": usuario_id,
+                            "conferencia_id": conferencia_id,
+                            "asistio": False
+                        }
+                        result = db.child("usuario_conferencia").push(registro)
+                        print("Registro añadido con ID:", result['name'])
+                    else:
+                        print(f"Conexión ya existe para usuario {usuario_id} y conferencia {conferencia_id}")
+
+
 
 # Ejecuta la función principal con la ruta del archivo Excel
 ruta_excel = "app/static/documents/inscripciones.xlsx"
