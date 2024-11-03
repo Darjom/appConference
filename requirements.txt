@@ -34,6 +34,7 @@ requests==2.32.3
 requests-toolbelt==0.10.1
 rsa==4.9
 six==1.16.0
+setuptools
 typing_extensions==4.12.2
 tzdata==2024.2
 urllib3==1.26.20
