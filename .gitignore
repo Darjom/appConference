@@ -1,4 +1,4 @@
-venv
+venv/
 .env
 app/static/documents/inscripciones.xlsx
 qrs/Pdrabumz@gmail.com.png
