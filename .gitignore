@@ -1,5 +1,6 @@
 venv/
 .env
+qrs/
 app/static/documents/inscripciones.xlsx
 qrs/Pdrabumz@gmail.com.png
 qrs/zapzip050@gmail.com.png
