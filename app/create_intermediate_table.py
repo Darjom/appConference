@@ -98,7 +98,7 @@ def registrar_usuarios_conferencias(ruta_excel):
     inscripciones = obtener_datos_inscripcion(ruta_excel)
 
     for _, inscripcion_data in inscripciones.iterrows():
-        email = inscripcion_data["Dirección de correo electrónico"]
+        email = inscripcion_data["Correo electrónico"]
         nombre_completo = inscripcion_data["Nombre Completo"]
         celular = str(inscripcion_data["Celular"])
         tipo_inscripcion = inscripcion_data["A cuantas conferencias desea inscribirse?"]
